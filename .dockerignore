@@ -1,0 +1,6 @@
+.idea/
+
+Dockerfile
+README.md
+bw-crowdedness
+.dockerignore

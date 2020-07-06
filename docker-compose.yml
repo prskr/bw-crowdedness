@@ -1,0 +1,70 @@
+version: '3.7'
+services:
+
+  traefik:
+    image: "traefik:v2.2"
+    container_name: "traefik"
+    command:
+      #- "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.defaultResolver.acme.httpchallenge=true"
+      - "--certificatesresolvers.defaultResolver.acme.httpchallenge.entrypoint=web"
+      #- "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--certificatesresolvers.defaultResolver.acme.email=peter.kurfer@gmail.coms"
+      - "--certificatesresolvers.defaultResolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - type: volume
+        source: traefik_data
+        target: /letsencrypt
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+
+  bw-crowdedness:
+    image: baez90/bw-crowdedness
+
+  prometheus:
+    image: prom/prometheus:v2.19.2
+    volumes:
+    - type: bind
+      source: ./deploy/prom/prometheus.yml
+      target: /etc/prometheus/prometheus.yml
+      read_only: true
+    - type: volume
+      source: prom_data
+      target: /prometheus
+    ports:
+    - target: 9090
+      protocol: tcp
+      published: 9090
+  grafana:
+    image: grafana/grafana:7.0.5
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: 1n1t-R00t!
+    ports:
+    - target: 3000
+      published: 3001
+      protocol: tcp
+    volumes:
+    - type: volume
+      source: grafana_data
+      target: /var/lib/grafana
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`www.when2boulder.de`)"
+      - "traefik.http.routers.whoami.entrypoints=websecure"
+      - "traefik.http.routers.whoami.tls.certresolver=defaultResolver"
+
+volumes:
+  prom_data: {}
+  grafana_data: {}
+  traefik_data: {}
