@@ -1,4 +1,4 @@
-FROM golang:1.14-alpine as build
+FROM docker.io/golang:1.16-alpine as build
 
 # Create appuser and group.
 ARG USER=bw
@@ -32,7 +32,7 @@ COPY ./ ./
 
 RUN GOOS=linux GOARCH=amd64 go build -o bw-crowdedness -ldflags='-w -s' -a -installsuffix cgo ./
 
-FROM alpine:3.12
+FROM docker.io/alpine:3.13
 
 WORKDIR /app
 

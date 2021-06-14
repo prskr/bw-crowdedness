@@ -2,7 +2,7 @@ version: '3.7'
 services:
 
   traefik:
-    image: "traefik:v2.2"
+    image: "docker.io/traefik:v2.4"
     container_name: "traefik"
     command:
       #- "--log.level=DEBUG"
@@ -30,10 +30,10 @@ services:
         read_only: true
 
   bw-crowdedness:
-    image: baez90/bw-crowdedness
+    image: docker.io/baez90/bw-crowdedness
 
   prometheus:
-    image: prom/prometheus:v2.19.2
+    image: docker.io/prom/prometheus:v2.27.1
     command:
     - --config.file=/etc/prometheus/prometheus.yml
     - --storage.tsdb.path=/prometheus
@@ -49,7 +49,7 @@ services:
       source: prom_data
       target: /prometheus
   grafana:
-    image: grafana/grafana:7.0.5
+    image: docker.io/grafana/grafana:8.0.2
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: 1n1t-R00t!

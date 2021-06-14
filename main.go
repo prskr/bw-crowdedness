@@ -1,12 +1,14 @@
 package main
 
 import (
-	"github.com/baez90/bw-crowdedness/internal/bw"
+	"net/http"
+
 	"github.com/jasonlvhit/gocron"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
-	"net/http"
+
+	"github.com/baez90/bw-crowdedness/internal/bw"
 )
 
 var (
@@ -14,6 +16,10 @@ var (
 		{
 			Domain:    "www.boulderwelt-dortmund.de",
 			ShortName: "dortmund",
+		},
+		{
+			Domain:    "www.boulderwelt-muenchen-sued.de",
+			ShortName: "munich_south",
 		},
 		{
 			Domain:    "www.boulderwelt-muenchen-west.de",
@@ -33,60 +39,64 @@ var (
 		},
 	}
 
-	metricLabels = []string{"branch"}
-
-	logger *zap.Logger
-
+	metricLabels     = []string{"branch"}
 	crowdednessGauge *prometheus.GaugeVec
 	queueGauge       *prometheus.GaugeVec
 	fetchStatTiming  *prometheus.HistogramVec
 )
 
 func main() {
+	var (
+		err    error
+		logger *zap.Logger
+	)
 	logger, _ = zap.NewProduction()
-	_ = gocron.Every(5).Second().From(gocron.NextTick()).Do(fetchBWStats)
+	_ = gocron.Every(5).Second().From(gocron.NextTick()).Do(func() {
+		fetchBWStats(logger)
+	})
 	initMetrics()
 
 	go func() {
-		<- gocron.Start()
+		<-gocron.Start()
 	}()
 
 	http.Handle("/metrics", promhttp.Handler())
-	err := http.ListenAndServe(":9091", nil)
+	err = http.ListenAndServe(":9091", nil)
 	logger.Info("Stopped HTTP server", zap.Error(err))
 }
 
-func fetchBWStats() {
+func fetchBWStats(logger *zap.Logger) {
 	logger.Info("Start fetching current metrics")
 	for _, instance := range bws {
-		go processBW(instance)
+		instance := instance
+		go processBW(logger, instance)
 	}
 }
 
-func processBW(instance bw.BW) {
-	var err error
-	var stats bw.Stats
-	timer := prometheus.NewTimer(fetchStatTiming.WithLabelValues(instance.ShortName))
+func processBW(logger *zap.Logger, instance bw.BW) {
+	var (
+		branchLogger = logger.With(zap.String("branch", instance.ShortName))
+		timer        = prometheus.NewTimer(fetchStatTiming.WithLabelValues(instance.ShortName))
+		stats        bw.Stats
+		err          error
+	)
+
 	defer timer.ObserveDuration()
 	if stats, err = bw.StatsForBW(instance.Domain); err != nil {
-		logger.Error(
+		branchLogger.Error(
 			"failed to collect BW stats",
 			zap.Error(err),
 		)
 		return
 	}
 
-	logger.Info(
-		"Got current metrics",
-		zap.String("branch", instance.ShortName),
-	)
+	branchLogger.Info("Got current metrics")
 
 	crowdednessGauge.WithLabelValues(instance.ShortName).Set(float64(stats.CrowdednessPercent))
 	queueGauge.WithLabelValues(instance.ShortName).Set(float64(stats.Queue))
 }
 
 func initMetrics() {
-
 	crowdednessGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "bw",
 		Subsystem: "crowdedness",
